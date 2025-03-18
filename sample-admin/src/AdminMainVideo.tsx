@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useRef } from "react";
-import useVideoStream from "./hooks/useVideoStream";
+import { useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
-import { SOCKET_ON_ENUM, SOCKET_EMIT_ENUM } from "./SocketEnum";
+import { SOCKET_EMIT_ENUM, SOCKET_ON_ENUM } from "./SocketEnum";
 
 const PC_CONFIG = {
   iceServers: [
@@ -11,39 +10,16 @@ const PC_CONFIG = {
   ],
 };
 
-export default function ClientStream() {
+export default function AdminMainVideo({ clientId }: { clientId: string }) {
   const SFU_SERVER_URL = "http://172.20.10.2:8080";
-  const CONVERTER_SERVER_URL = "http://localhost:8083";
   const videoRef = useRef<HTMLVideoElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
 
-  const { stream, connection, isOnline } = useVideoStream({
-    streamServerUrl: CONVERTER_SERVER_URL,
-    suuid: "my_suuid",
-    isStreamServerInSameNetwork: true,
-  });
-
-  const registerSFU = async () => {
-    try {
-      while (!socketRef.current || socketRef.current.id === undefined) {
-        await new Promise((resolve) => setTimeout(resolve, 100)); // 100ms delay
-      }
-      console.log("before create sender peer");
-      console.log(`Thumbnail Socket => ${socketRef.current.id}`);
-
-      socketRef.current.emit(SOCKET_EMIT_ENUM.JOIN_CLIENT, {
-        id: socketRef.current.id,
-      });
-      createSenderPeerConnection();
-      await createSenderOffer();
-    } catch (e) {
-      console.log(`getLocalStream error: ${e}`);
-    }
-  };
-
-  const createSenderPeerConnection = () => {
+  const createReceiverPeerConnection = () => {
     const pc = new RTCPeerConnection(PC_CONFIG);
+    console.log("create receiver peer connection !!!");
+    console.log(pc);
 
     pc.onicecandidate = (e) => {
       if (!e.candidate) {
@@ -55,9 +31,10 @@ export default function ClientStream() {
         return;
       }
       console.log("sender thumbnail PC onicecandidate");
-      socketRef.current.emit(SOCKET_EMIT_ENUM.SENDER_CANDIDATE, {
+      socketRef.current.emit(SOCKET_EMIT_ENUM.RECEIVER_CANDIDATE, {
         candidate: e.candidate,
-        senderSocketID: socketRef.current.id,
+        selectedClientSocketId: clientId,
+        adminSocketId: socketRef.current.id,
       });
     };
 
@@ -65,50 +42,78 @@ export default function ClientStream() {
       console.log(e);
     };
 
-    if (stream) {
-      console.log("adding local stream");
-      stream.getTracks().forEach((track) => {
-        if (!stream) return;
-        pc.addTrack(track, stream);
-      });
-    } else {
-      console.log("no local stream found");
-    }
+    pc.ontrack = (e) => {
+      console.log("ontrack");
+      if (videoRef.current) {
+        console.log("ontrack video ref set");
+        videoRef.current.srcObject = e.streams[0];
+      }
+    };
 
     pcRef.current = pc;
   };
 
-  const createSenderOffer = async () => {
+  const createReceiverOffer = async (
+    pc: RTCPeerConnection,
+    selectedClientSocketId: string
+  ) => {
     console.log("Create sender offer run");
     try {
-      if (!pcRef.current) return;
-      const sdp = await pcRef.current.createOffer({
-        offerToReceiveAudio: false,
-        offerToReceiveVideo: false,
+      const sdp = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true,
       });
 
-      console.log("create sender offer success");
-
-      await pcRef.current.setLocalDescription(new RTCSessionDescription(sdp));
+      await pc.setLocalDescription(new RTCSessionDescription(sdp));
 
       if (!socketRef.current) return;
-      console.log(`Socket ID => ${socketRef.current.id}`);
-      socketRef.current.emit(SOCKET_EMIT_ENUM.SENDER_OFFER, {
+      socketRef.current.emit(SOCKET_EMIT_ENUM.RECEIVER_OFFER, {
         sdp: sdp,
-        senderSocketId: socketRef.current.id,
+        adminSocketId: socketRef.current.id,
+        selectedClientSocketId: selectedClientSocketId,
       });
     } catch (error) {
       console.log(error);
     }
   };
 
+  const registerSFU = async () => {
+    try {
+      if (!pcRef.current || !socketRef.current) {
+        console.log("no pc found");
+        return;
+      }
+
+      console.log("before create sender peer");
+      console.log(`Thumbnail Socket => ${socketRef.current.id}`);
+
+      createReceiverPeerConnection();
+      await createReceiverOffer(pcRef.current, clientId);
+    } catch (e) {
+      console.log(`getLocalStream error: ${e}`);
+    }
+  };
+
   useEffect(() => {
+    console.log("Connecting to SFU server");
     socketRef.current = io(SFU_SERVER_URL);
-    while (!socketRef.current) {
+    while (!socketRef.current || !socketRef.current.id) {
       console.log("Not Ready");
     }
-    if (!stream || !isOnline) return;
-    console.log("Main useEffect run");
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!socketRef.current || !pcRef.current || !videoRef.current) return;
+
+    console.log("Main useEffect run socket id");
+    console.log(socketRef.current.id);
+    console.log(socketRef.current);
     registerSFU();
 
     socketRef.current.on(
@@ -147,31 +152,20 @@ export default function ClientStream() {
       // Cleanup connections
       if (socketRef.current) {
         socketRef.current.disconnect();
-        socketRef.current.off();
       }
       if (pcRef.current) {
+        console.log("close pc");
         pcRef.current.close();
       }
     };
   }, [
     registerSFU,
-    createSenderOffer,
-    createSenderPeerConnection,
-    isOnline,
-    stream,
+    createReceiverOffer,
+    createReceiverPeerConnection,
     socketRef,
     pcRef,
     videoRef,
   ]);
-
-  useEffect(() => {
-    if (videoRef.current && stream) {
-      console.log("video ref set");
-      videoRef.current.srcObject = stream;
-    }
-    console.log("stream", stream);
-    console.log("stream tracks", stream?.getTracks());
-  }, [stream, videoRef]);
 
   const handlePlayPause = () => {
     if (!videoRef.current) return;
@@ -181,8 +175,8 @@ export default function ClientStream() {
 
   return (
     <div>
-      <h1>Client Stream</h1>
-      <video ref={videoRef} autoPlay muted></video>
+      <h1>Client ID: {clientId}</h1>
+      <video ref={videoRef} id="admin-main-video" autoPlay muted></video>
       <button onClick={handlePlayPause}>{"Play"}</button>
     </div>
   );
