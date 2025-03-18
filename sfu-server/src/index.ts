@@ -90,14 +90,14 @@ const createReceiverPeerConnection = (socketID: string, socket: Socket) => {
 const createSenderPeerConnection = (
   receiverSocketID: string,
   senderSocketID: string,
-  socket: Socket
+  socket: Socket,
 ) => {
   const pc = new wrtc.RTCPeerConnection(PC_CONFIG);
   roomState.senderPC[senderSocketID] = pc;
 
   pc.onicecandidate = (e) => {
     console.log(
-      `socketID: ${receiverSocketID}'s senderPeerConnection icecandidate`
+      `socketID: ${receiverSocketID}'s senderPeerConnection icecandidate`,
     );
     const getReceiverCandidateBody: GetReceiverCandidateBody = {
       id: senderSocketID,
@@ -175,7 +175,7 @@ io.on("connection", (socket) => {
           message: `Failed to handle ${SOCKET_ON_ENUM.SENDER_CANDIDATE}: ${error}`,
         });
       }
-    }
+    },
   );
 
   /**
@@ -199,7 +199,7 @@ io.on("connection", (socket) => {
       let pc = createSenderPeerConnection(
         data.adminSocketId,
         data.selectedClientSocketId,
-        socket
+        socket,
       );
       await pc.setRemoteDescription(data.sdp);
       let sdp = await pc.createAnswer({
@@ -223,14 +223,14 @@ io.on("connection", (socket) => {
     async (data: ReceiverCandidateResponse) => {
       try {
         await roomState.senderPC[data.selectedClientSocketId].addIceCandidate(
-          new wrtc.RTCIceCandidate(data.candidate)
+          new wrtc.RTCIceCandidate(data.candidate),
         );
       } catch (error) {
         socket.emit(SOCKET_EMIT_ENUM.ERROR, {
           message: `Failed to handle ${SOCKET_ON_ENUM.RECEIVER_CANDIDATE}: ${error}`,
         });
       }
-    }
+    },
   );
 
   /**
@@ -238,10 +238,15 @@ io.on("connection", (socket) => {
    */
   socket.on(SOCKET_ON_ENUM.DISCONNECT, () => {
     delete roomState.clients[socket.id];
-    roomState.receiverPC[socket.id].close();
-    delete roomState.receiverPC[socket.id];
-    roomState.senderPC[socket.id].close();
-    delete roomState.senderPC[socket.id];
+    if (roomState.receiverPC[socket.id]) {
+      roomState.receiverPC[socket.id].close();
+      delete roomState.receiverPC[socket.id];
+    }
+
+    if (roomState.senderPC[socket.id]) {
+      roomState.senderPC[socket.id].close();
+      delete roomState.senderPC[socket.id];
+    }
   });
 });
 
