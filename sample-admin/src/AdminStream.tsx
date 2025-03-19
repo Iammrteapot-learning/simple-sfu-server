@@ -8,6 +8,7 @@ export default function AdminStream() {
   const socketRef = useRef<Socket | null>(null);
   const [clientIds, setClientIds] = useState<string[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [isReady, setIsReady] = useState(false);
 
   const handleSelectClient = (id: string) => {
     setSelectedClientId(id);
@@ -44,7 +45,18 @@ export default function AdminStream() {
         socketRef.current.off();
       }
     };
-  }, [SFU_SERVER_URL, socketRef]);
+  }, [SFU_SERVER_URL]);
+
+  useEffect(() => {
+    if (socketRef.current) {
+      console.log("socket id is ", socketRef.current.id);
+      if (socketRef.current.id) {
+        setIsReady(true);
+      } else {
+        setIsReady(false);
+      }
+    }
+  }, [socketRef.current?.id]);
 
   return (
     <div>
@@ -54,7 +66,12 @@ export default function AdminStream() {
           {id}
         </button>
       ))}
-      <AdminMainVideo clientId={selectedClientId || "no-client-found"} />
+      {isReady && socketRef.current && (
+        <AdminMainVideo
+          clientId={selectedClientId || "no-client-found"}
+          socketRef={socketRef}
+        />
+      )}
     </div>
   );
 }

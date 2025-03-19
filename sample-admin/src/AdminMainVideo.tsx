@@ -10,10 +10,15 @@ const PC_CONFIG = {
   ],
 };
 
-export default function AdminMainVideo({ clientId }: { clientId: string }) {
+export default function AdminMainVideo({
+  clientId,
+  socketRef,
+}: {
+  clientId: string;
+  socketRef: React.RefObject<Socket | null>;
+}) {
   const SFU_SERVER_URL = "http://172.20.10.2:8080";
   const videoRef = useRef<HTMLVideoElement>(null);
-  const socketRef = useRef<Socket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
 
   const createReceiverPeerConnection = () => {
@@ -79,8 +84,8 @@ export default function AdminMainVideo({ clientId }: { clientId: string }) {
 
   const registerSFU = async () => {
     try {
-      if (!pcRef.current || !socketRef.current) {
-        console.log("no pc found");
+      if (!socketRef.current) {
+        console.log("No socket found");
         return;
       }
 
@@ -88,6 +93,11 @@ export default function AdminMainVideo({ clientId }: { clientId: string }) {
       console.log(`Thumbnail Socket => ${socketRef.current.id}`);
 
       createReceiverPeerConnection();
+
+      if (!pcRef.current) {
+        console.log("No pc found");
+        return;
+      }
       await createReceiverOffer(pcRef.current, clientId);
     } catch (e) {
       console.log(`getLocalStream error: ${e}`);
@@ -96,9 +106,15 @@ export default function AdminMainVideo({ clientId }: { clientId: string }) {
 
   useEffect(() => {
     console.log("Connecting to SFU server");
-    socketRef.current = io(SFU_SERVER_URL);
-    while (!socketRef.current || !socketRef.current.id) {
-      console.log("Not Ready");
+
+    if (!socketRef.current) {
+      console.log("No socket found");
+      return;
+    }
+
+    if (!socketRef.current.id) {
+      console.log("No socket id found");
+      return;
     }
 
     return () => {
@@ -109,11 +125,10 @@ export default function AdminMainVideo({ clientId }: { clientId: string }) {
   }, []);
 
   useEffect(() => {
-    if (!socketRef.current || !pcRef.current || !videoRef.current) return;
+    if (!socketRef.current || !videoRef.current) return;
 
     console.log("Main useEffect run socket id");
     console.log(socketRef.current.id);
-    console.log(socketRef.current);
     registerSFU();
 
     socketRef.current.on(
