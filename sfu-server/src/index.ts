@@ -238,11 +238,16 @@ io.on("connection", (socket) => {
    */
   socket.on(SOCKET_ON_ENUM.DISCONNECT, () => {
     delete roomState.clients[socket.id];
+
+    const clientIds = Object.keys(roomState.clients);
+    socket.broadcast
+      .to(ADMIN_ROOM)
+      .emit(SOCKET_EMIT_ENUM.CLIENT_LIST, { clientIds: clientIds });
+
     if (roomState.receiverPC[socket.id]) {
       roomState.receiverPC[socket.id].close();
       delete roomState.receiverPC[socket.id];
     }
-
     if (roomState.senderPC[socket.id]) {
       roomState.senderPC[socket.id].close();
       delete roomState.senderPC[socket.id];
