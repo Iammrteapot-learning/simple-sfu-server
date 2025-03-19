@@ -35,7 +35,7 @@ export default function AdminMainVideo({
         console.log("no socket found");
         return;
       }
-      console.log("sender thumbnail PC onicecandidate");
+      console.log("receiver thumbnail PC onicecandidate");
       socketRef.current.emit(SOCKET_EMIT_ENUM.RECEIVER_CANDIDATE, {
         candidate: e.candidate,
         selectedClientSocketId: clientId,
@@ -62,7 +62,7 @@ export default function AdminMainVideo({
     pc: RTCPeerConnection,
     selectedClientSocketId: string
   ) => {
-    console.log("Create sender offer run");
+    console.log("Create receiver offer run");
     try {
       const sdp = await pc.createOffer({
         offerToReceiveAudio: true,
@@ -89,7 +89,7 @@ export default function AdminMainVideo({
         return;
       }
 
-      console.log("before create sender peer");
+      console.log("before create receiver peer");
       console.log(`Thumbnail Socket => ${socketRef.current.id}`);
 
       createReceiverPeerConnection();
@@ -117,11 +117,11 @@ export default function AdminMainVideo({
       return;
     }
 
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
-    };
+    // return () => {
+    //   if (socketRef.current) {
+    //     socketRef.current.disconnect();
+    //   }
+    // };
   }, []);
 
   useEffect(() => {
@@ -129,14 +129,16 @@ export default function AdminMainVideo({
 
     console.log("Main useEffect run socket id");
     console.log(socketRef.current.id);
-    registerSFU();
 
     socketRef.current.on(
-      SOCKET_ON_ENUM.GET_SENDER_ANSWER,
-      async (data: { sdp: RTCSessionDescription }) => {
+      SOCKET_ON_ENUM.GET_RECEIVER_ANSWER,
+      async (data: { sdp: RTCSessionDescription; id: string }) => {
         try {
-          if (!pcRef.current) return;
-          console.log("get sender answer");
+          if (!pcRef.current) {
+            console.log("Receiver answer, No pc found");
+            return;
+          }
+          console.log("Receiver answer, get receiver answer");
           console.log(data.sdp);
           await pcRef.current.setRemoteDescription(
             new RTCSessionDescription(data.sdp)
@@ -148,26 +150,36 @@ export default function AdminMainVideo({
     );
 
     socketRef.current.on(
-      SOCKET_ON_ENUM.GET_SENDER_CANDIDATE,
-      async (data: { candidate: RTCIceCandidateInit }) => {
+      SOCKET_ON_ENUM.GET_RECEIVER_CANDIDATE,
+      async (data: { candidate: RTCIceCandidateInit; id: string }) => {
+        console.log("Receiver candidate data, ", data);
         try {
-          if (!(data.candidate && pcRef.current)) return;
-          console.log("get sender candidate");
+          if (!data.candidate) {
+            console.log("Receiver candidate, No candidate found");
+            return;
+          }
+
+          if (!pcRef.current) {
+            console.log("Receiver candidate, No pc found");
+            return;
+          }
+          console.log("Receiver candidate, get receiver candidate");
           await pcRef.current.addIceCandidate(
             new RTCIceCandidate(data.candidate)
           );
-          console.log("candidate add success");
+          console.log("Receiver candidate, candidate add success");
         } catch (error) {
           console.log(error);
         }
       }
     );
 
+    registerSFU();
     return () => {
       // Cleanup connections
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
+      // if (socketRef.current) {
+      //   socketRef.current.disconnect();
+      // }
       if (pcRef.current) {
         console.log("close pc");
         pcRef.current.close();
@@ -178,8 +190,8 @@ export default function AdminMainVideo({
     createReceiverOffer,
     createReceiverPeerConnection,
     socketRef,
-    pcRef,
     videoRef,
+    pcRef,
   ]);
 
   const handlePlayPause = () => {

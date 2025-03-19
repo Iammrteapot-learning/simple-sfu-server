@@ -4,7 +4,7 @@ import { SOCKET_EMIT_ENUM, SOCKET_ON_ENUM } from "./SocketEnum";
 import AdminMainVideo from "./AdminMainVideo";
 
 export default function AdminStream() {
-  const SFU_SERVER_URL = "http://172.20.10.2:8080";
+  const SFU_SERVER_URL = "http://localhost:8080";
   const socketRef = useRef<Socket | null>(null);
   const [clientIds, setClientIds] = useState<string[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -66,7 +66,7 @@ export default function AdminStream() {
           {id}
         </button>
       ))}
-      {isReady && socketRef.current && (
+      {selectedClientId && isReady && socketRef.current && (
         <AdminMainVideo
           clientId={selectedClientId || "no-client-found"}
           socketRef={socketRef}

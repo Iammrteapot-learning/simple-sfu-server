@@ -68,9 +68,7 @@ const createReceiverPeerConnection = (socketID: string, socket: Socket) => {
     const candidateBody: GetSenderCandidateBody = {
       candidate: e.candidate,
     };
-    socket
-      .to(socketID)
-      .emit(SOCKET_EMIT_ENUM.GET_SENDER_CANDIDATE, candidateBody);
+    socket.emit(SOCKET_EMIT_ENUM.GET_SENDER_CANDIDATE, candidateBody);
   };
 
   pc.oniceconnectionstatechange = (e) => {
@@ -90,22 +88,23 @@ const createReceiverPeerConnection = (socketID: string, socket: Socket) => {
 const createSenderPeerConnection = (
   receiverSocketID: string,
   senderSocketID: string,
-  socket: Socket,
+  socket: Socket
 ) => {
   const pc = new wrtc.RTCPeerConnection(PC_CONFIG);
   roomState.senderPC[senderSocketID] = pc;
 
   pc.onicecandidate = (e) => {
     console.log(
-      `socketID: ${receiverSocketID}'s senderPeerConnection icecandidate`,
+      `socketID: ${receiverSocketID}'s senderPeerConnection icecandidate`
     );
     const getReceiverCandidateBody: GetReceiverCandidateBody = {
       id: senderSocketID,
       candidate: e.candidate,
     };
-    socket
-      .to(receiverSocketID)
-      .emit(SOCKET_EMIT_ENUM.GET_RECEIVER_CANDIDATE, getReceiverCandidateBody);
+    socket.emit(
+      SOCKET_EMIT_ENUM.GET_RECEIVER_CANDIDATE,
+      getReceiverCandidateBody
+    );
   };
 
   pc.oniceconnectionstatechange = (e) => {
@@ -175,7 +174,7 @@ io.on("connection", (socket) => {
           message: `Failed to handle ${SOCKET_ON_ENUM.SENDER_CANDIDATE}: ${error}`,
         });
       }
-    },
+    }
   );
 
   /**
@@ -199,7 +198,7 @@ io.on("connection", (socket) => {
       let pc = createSenderPeerConnection(
         data.adminSocketId,
         data.selectedClientSocketId,
-        socket,
+        socket
       );
       await pc.setRemoteDescription(data.sdp);
       let sdp = await pc.createAnswer({
@@ -223,14 +222,14 @@ io.on("connection", (socket) => {
     async (data: ReceiverCandidateResponse) => {
       try {
         await roomState.senderPC[data.selectedClientSocketId].addIceCandidate(
-          new wrtc.RTCIceCandidate(data.candidate),
+          new wrtc.RTCIceCandidate(data.candidate)
         );
       } catch (error) {
         socket.emit(SOCKET_EMIT_ENUM.ERROR, {
           message: `Failed to handle ${SOCKET_ON_ENUM.RECEIVER_CANDIDATE}: ${error}`,
         });
       }
-    },
+    }
   );
 
   /**

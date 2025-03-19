@@ -12,7 +12,7 @@ const PC_CONFIG = {
 };
 
 export default function ClientStream() {
-  const SFU_SERVER_URL = "http://172.20.10.2:8080";
+  const SFU_SERVER_URL = "http://localhost:8080";
   const CONVERTER_SERVER_URL = "http://localhost:8083";
   const videoRef = useRef<HTMLVideoElement>(null);
   const socketRef = useRef<Socket | null>(null);
